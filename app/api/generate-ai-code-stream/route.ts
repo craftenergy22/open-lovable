@@ -44,6 +44,12 @@ const openai = createOpenAI({
   baseURL: isUsingAIGateway ? aiGatewayBaseURL : process.env.OPENAI_BASE_URL,
 });
 
+// Perplexity provider (OpenAI-compatible API)
+const perplexity = createOpenAI({
+  apiKey: process.env.PERPLEXITY_API_KEY,
+  baseURL: 'https://api.perplexity.ai',
+});
+
 // Helper function to analyze user preferences from conversation history
 function analyzeUserPreferences(messages: ConversationMessage[]): {
   commonPatterns: string[];
@@ -1217,11 +1223,13 @@ MORPH FAST APPLY MODE (EDIT-ONLY):
         const isGoogle = model.startsWith('google/');
         const isOpenAI = model.startsWith('openai/');
         const isKimiGroq = model === 'moonshotai/kimi-k2-instruct-0905';
+            const isPerplexity = model.startsWith('perplexity/');
         const modelProvider = isAnthropic ? anthropic : 
                               (isOpenAI ? openai : 
                               (isGoogle ? googleGenerativeAI : 
-                              (isKimiGroq ? groq : groq)));
-        
+                                                    (isPerplexity ? perplexity :
+                      (isKimiGroq ? groq : groq))));
+            
         // Fix model name transformation for different providers
         let actualModel: string;
         if (isAnthropic) {
@@ -1234,11 +1242,14 @@ MORPH FAST APPLY MODE (EDIT-ONLY):
         } else if (isGoogle) {
           // Google uses specific model names - convert our naming to theirs  
           actualModel = model.replace('google/', '');
-        } else {
+            } else if (isPerplexity) {
+      // Perplexity uses OpenAI-compatible API - strip prefix
+      actualModel = model.replace('perplexity/', '');
+    } else {
           actualModel = model;
         }
 
-        console.log(`[generate-ai-code-stream] Using provider: ${isAnthropic ? 'Anthropic' : isGoogle ? 'Google' : isOpenAI ? 'OpenAI' : 'Groq'}, model: ${actualModel}`);
+            console.log(`[generate-ai-code-stream] Using provider: ${isAnthropic ? 'Anthropic' : isGoogle ? 'Google' : isOpenAI ? 'OpenAI' : isPerplexity ? 'Perplexity' : 'Groq'}, model: ${actualModel}`);
         console.log(`[generate-ai-code-stream] AI Gateway enabled: ${isUsingAIGateway}`);
         console.log(`[generate-ai-code-stream] Model string: ${model}`);
 
@@ -1369,7 +1380,7 @@ It's better to have 3 complete files than 10 incomplete files.`
               });
               
               // If this is a Google model error, provide helpful info
-              if (isGoogle) {
+                            message: `Failed to initialize ${isGoogle ? 'Gemini' : isAnthropic ? 'Claude' : isOpenAI ? 'GPT-5' : isPerplexity ? 'Sonar (Perplexity)' : isKimiGroq ? 'Kimi (Groq)' : 'Groq'} streaming: ${streamError.message}`
                 await sendProgress({ 
                   type: 'info', 
                   message: 'Tip: Make sure your GEMINI_API_KEY is set correctly and has proper permissions.' 
